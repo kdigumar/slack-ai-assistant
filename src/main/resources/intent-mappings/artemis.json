@@ -1,0 +1,33 @@
+[
+  {
+    "appId": "artemis",
+    "intentName": "User not active",
+    "apiNames": ["user"]
+  },
+  {
+    "appId": "artemis",
+    "intentName": "Not able to view business",
+    "apiNames": ["user", "business"]
+  },
+  {
+    "appId": "artemis",
+    "intentName": "TicketCreation",
+    "apiNames": ["ticketcreate"]
+  },
+  {
+    "appId": "artemis",
+    "intentName": "ticketdetails",
+    "apiNames": ["viewticket"]
+  },
+  {
+    "appId": "artemis",
+    "intentName": "update user status",
+    "apiNames": ["updateuser"]
+  },
+  {
+    "appId": "artemis",
+    "intentName": "App Crash",
+    "apiNames": ["appcrash"]
+  }
+]
+

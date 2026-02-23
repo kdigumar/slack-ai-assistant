@@ -1,0 +1,33 @@
+[
+  {
+    "appId": "b360",
+    "intentName": "Login issue",
+    "apiNames": ["auth"]
+  },
+  {
+    "appId": "b360",
+    "intentName": "Report generation failed",
+    "apiNames": ["report"]
+  },
+  {
+    "appId": "b360",
+    "intentName": "Data sync problem",
+    "apiNames": ["sync"]
+  },
+  {
+    "appId": "b360",
+    "intentName": "Dashboard not loading",
+    "apiNames": ["dashboard"]
+  },
+  {
+    "appId": "b360",
+    "intentName": "Permission denied",
+    "apiNames": ["permissions"]
+  },
+  {
+    "appId": "b360",
+    "intentName": "TicketCreation",
+    "apiNames": ["ticketcreate"]
+  }
+]
+

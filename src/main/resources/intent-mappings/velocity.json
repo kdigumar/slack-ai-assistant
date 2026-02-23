@@ -1,0 +1,33 @@
+[
+  {
+    "appId": "velocity",
+    "intentName": "Build failed",
+    "apiNames": ["build"]
+  },
+  {
+    "appId": "velocity",
+    "intentName": "Deployment stuck",
+    "apiNames": ["deployment"]
+  },
+  {
+    "appId": "velocity",
+    "intentName": "Pipeline error",
+    "apiNames": ["pipeline"]
+  },
+  {
+    "appId": "velocity",
+    "intentName": "Environment configuration",
+    "apiNames": ["environment"]
+  },
+  {
+    "appId": "velocity",
+    "intentName": "Agent offline",
+    "apiNames": ["agent"]
+  },
+  {
+    "appId": "velocity",
+    "intentName": "TicketCreation",
+    "apiNames": ["ticketcreate"]
+  }
+]
+

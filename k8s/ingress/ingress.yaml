@@ -1,0 +1,104 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: slack-assistant-ingress
+  namespace: slack-assistant
+  labels:
+    app.kubernetes.io/name: slack-assistant
+  annotations:
+    # ─── NGINX Ingress Controller Annotations ─────────────────────────────────
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    
+    # ─── Rate Limiting (optional) ─────────────────────────────────────────────
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "50"
+    
+    # ─── TLS/HTTPS with cert-manager (optional) ───────────────────────────────
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  # ─── TLS Configuration (uncomment for HTTPS) ────────────────────────────────
+  # tls:
+  #   - hosts:
+  #       - slack-assistant.your-domain.com
+  #     secretName: slack-assistant-tls
+  rules:
+    - host: slack-assistant.your-domain.com  # Replace with your domain
+      http:
+        paths:
+          - path: /slack/events
+            pathType: Prefix
+            backend:
+              service:
+                name: slack-assistant
+                port:
+                  number: 80
+          - path: /actuator
+            pathType: Prefix
+            backend:
+              service:
+                name: slack-assistant
+                port:
+                  number: 80
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# NETWORK POLICY (Optional - restricts traffic to necessary endpoints)
+# ═══════════════════════════════════════════════════════════════════════════════
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: slack-assistant-network-policy
+  namespace: slack-assistant
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: slack-assistant
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow traffic from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Allow traffic to Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow traffic to Kafka
+    - to:
+        - podSelector:
+            matchLabels:
+              strimzi.io/cluster: slack-assistant-kafka
+      ports:
+        - protocol: TCP
+          port: 9092
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS to external APIs (OpenAI, Slack)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+

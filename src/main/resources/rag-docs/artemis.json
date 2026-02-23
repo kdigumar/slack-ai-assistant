@@ -1,0 +1,45 @@
+[
+  {
+    "id": "artemis-doc-001",
+    "title": "Artemis Account Activation Guide",
+    "content": "If a user account is inactive in Artemis, the administrator must navigate to Admin Console > User Management > Select User > Activate Account. Accounts are auto-deactivated after 90 days of inactivity. Users can also self-reactivate by clicking the reactivation link sent to their registered email.",
+    "keywords": ["inactive", "account", "activate", "access", "user not active", "unable to access", "no access"]
+  },
+  {
+    "id": "artemis-doc-002",
+    "title": "Business View Permissions in Artemis",
+    "content": "To view business data in Artemis, a user must have the BUSINESS_VIEWER or BUSINESS_ADMIN role assigned. Roles are managed in Admin Console > Roles & Permissions. If a user cannot see business records, verify their role assignment and ensure the business unit is linked to their profile.",
+    "keywords": ["business", "view business", "permissions", "roles", "business viewer", "cannot see", "not able to view"]
+  },
+  {
+    "id": "artemis-doc-003",
+    "title": "Creating Support Tickets in Artemis",
+    "content": "Support tickets in Artemis can be created via the Help Desk portal or through the Artemis API endpoint POST /api/v1/tickets. Required fields: title, description, priority (LOW/MEDIUM/HIGH/CRITICAL), and category. Tickets are auto-assigned to the on-call support queue. SLA timers start immediately upon creation.",
+    "keywords": ["ticket", "create ticket", "support ticket", "ticketcreation", "new ticket", "raise ticket", "help desk"]
+  },
+  {
+    "id": "artemis-doc-004",
+    "title": "Viewing Ticket Details in Artemis",
+    "content": "Ticket details can be retrieved via GET /api/v1/tickets/{ticketId}. Each ticket contains: status (OPEN/IN_PROGRESS/RESOLVED/CLOSED), assignee, priority, created timestamp, comments, and resolution notes. Tickets can also be viewed in the Artemis portal under Support > My Tickets.",
+    "keywords": ["ticket details", "view ticket", "ticket status", "ticket info", "ticket id", "ticketdetails"]
+  },
+  {
+    "id": "artemis-doc-005",
+    "title": "Updating User Status in Artemis",
+    "content": "User status in Artemis can be ACTIVE, INACTIVE, SUSPENDED, or PENDING_VERIFICATION. Admins can update status via Admin Console > User Management or via PUT /api/v1/users/{userId}/status. Status changes trigger email notifications to the affected user. Suspended users cannot log in until status is restored to ACTIVE.",
+    "keywords": ["update user", "user status", "activate", "deactivate", "suspend", "status change", "update user status"]
+  },
+  {
+    "id": "artemis-doc-006",
+    "title": "Diagnosing App Crashes in Artemis",
+    "content": "Artemis crash reports are stored in the Monitoring Dashboard under Diagnostics > Crash Reports. Each crash entry includes: timestamp, affected module, stack trace, user session ID, and environment (prod/staging). Common causes: memory overflow, network timeout (30s default), stale session tokens. For critical crashes, escalate to the Platform Engineering team via the #artemis-platform Slack channel.",
+    "keywords": ["crash", "app crash", "application crash", "error", "stack trace", "diagnostics", "module failure", "appcrash"]
+  },
+  {
+    "id": "artemis-doc-007",
+    "title": "Artemis Slack Integration Overview",
+    "content": "The Artemis Slack integration allows users to query account status, create tickets, and receive automated diagnostics directly from Slack channels. Commands are processed by the AI assistant which maps natural language to Artemis APIs. For setup, contact your Artemis administrator to enable the Slack app for your workspace.",
+    "keywords": ["slack", "integration", "setup", "how to use", "help", "commands", "general help", "assistant"]
+  }
+]
+

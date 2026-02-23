@@ -1,0 +1,33 @@
+[
+  {
+    "id": "b360-doc-001",
+    "title": "B360 Login Troubleshooting",
+    "content": "If you're having trouble logging into B360, first clear your browser cache and cookies. Check if your account is active in the admin portal. Common issues include: expired passwords (reset every 90 days), locked accounts after 5 failed attempts, and SSO configuration issues. Contact IT if the problem persists.",
+    "keywords": ["login", "login issue", "cannot login", "sign in", "authentication", "password", "locked account"]
+  },
+  {
+    "id": "b360-doc-002",
+    "title": "B360 Report Generation Guide",
+    "content": "To generate reports in B360, navigate to Reports > Create New. Select the report type, date range, and filters. Reports over 100,000 rows may take up to 15 minutes. If generation fails, check data source connectivity and ensure you have the REPORT_VIEWER role. Large reports are queued and emailed when complete.",
+    "keywords": ["report", "report generation", "generate report", "failed report", "report error", "reporting"]
+  },
+  {
+    "id": "b360-doc-003",
+    "title": "B360 Data Synchronization",
+    "content": "B360 syncs data from source systems every 4 hours by default. Manual sync can be triggered from Admin > Data Sources > Sync Now. Sync failures are typically caused by: network timeouts, source system downtime, or schema changes. Check the sync log in Admin > Data Sources > Sync History for detailed error messages.",
+    "keywords": ["sync", "data sync", "synchronization", "sync problem", "data not updated", "refresh data"]
+  },
+  {
+    "id": "b360-doc-004",
+    "title": "B360 Dashboard Configuration",
+    "content": "Dashboards in B360 are built using widgets. To add widgets: Edit Dashboard > Add Widget > Select Data Source > Configure Visualization. Dashboard loading issues are often caused by: too many widgets (limit 20 per dashboard), slow database queries, or missing permissions. Use the performance analyzer in Dashboard > Tools > Analyze.",
+    "keywords": ["dashboard", "dashboard not loading", "widgets", "slow dashboard", "dashboard error", "visualization"]
+  },
+  {
+    "id": "b360-doc-005",
+    "title": "B360 Permission Model",
+    "content": "B360 uses role-based access control. Available roles: VIEWER (read-only), ANALYST (create reports), ADMIN (full access). Permissions are inherited from organizational units. To request access changes, submit a ticket to IT or contact your B360 administrator. Permission changes take effect within 15 minutes.",
+    "keywords": ["permission", "access denied", "permission denied", "roles", "access control", "cannot access"]
+  }
+]
+

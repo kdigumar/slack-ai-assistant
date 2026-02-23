@@ -1,0 +1,94 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slack-assistant-config
+  namespace: slack-assistant
+  labels:
+    app.kubernetes.io/name: slack-assistant
+data:
+  # ─── Application Configuration ─────────────────────────────────────────────
+  application.yml: |
+    server:
+      port: 8080
+
+    products:
+      definitions:
+        artemis:
+          channels:
+            - artemishelp
+            - artemis-support
+          intent-mapping-file: intent-mappings/artemis.json
+          api-base-url: https://artemis-api.internal
+          rag-docs-file: rag-docs/artemis.json
+          mock-delay-ms: 50
+        b360:
+          channels:
+            - b360help
+            - b360-support
+          intent-mapping-file: intent-mappings/b360.json
+          api-base-url: https://b360-api.internal
+          rag-docs-file: rag-docs/b360.json
+          mock-delay-ms: 50
+        velocity:
+          channels:
+            - velocityhelp
+            - velocity-support
+          intent-mapping-file: intent-mappings/velocity.json
+          api-base-url: https://velocity-api.internal
+          rag-docs-file: rag-docs/velocity.json
+          mock-delay-ms: 50
+
+    spring:
+      ai:
+        openai:
+          chat:
+            options:
+              model: gpt-4o
+              temperature: 0.2
+      data:
+        redis:
+          host: redis-service
+          port: 6379
+          timeout: 2000ms
+      kafka:
+        bootstrap-servers: kafka-service:9092
+        consumer:
+          group-id: slack-assistant-consumer
+          auto-offset-reset: earliest
+
+    kafka:
+      enabled: true
+      topic:
+        slack-events: slack-events
+
+    cache:
+      ttl-minutes: 10
+
+    resilience4j:
+      circuitbreaker:
+        instances:
+          openai:
+            sliding-window-size: 10
+            failure-rate-threshold: 50
+            wait-duration-in-open-state: 30s
+            permitted-number-of-calls-in-half-open-state: 3
+          external-api:
+            sliding-window-size: 5
+            failure-rate-threshold: 60
+            wait-duration-in-open-state: 10s
+
+    logging:
+      level:
+        com.enterprise.slackassistant: INFO
+        com.slack.api: WARN
+        org.springframework.ai: INFO
+
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,metrics,prometheus
+      endpoint:
+        health:
+          show-details: always
+

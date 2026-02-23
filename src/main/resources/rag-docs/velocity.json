@@ -1,0 +1,33 @@
+[
+  {
+    "id": "velocity-doc-001",
+    "title": "Velocity Build Troubleshooting",
+    "content": "Build failures in Velocity are logged in the build console. Common causes: missing dependencies, syntax errors, test failures, and resource limits exceeded. To debug: check the build log, verify Dockerfile/buildspec.yml, ensure artifact storage is accessible. Retry with 'Clean Build' to clear cached layers.",
+    "keywords": ["build", "build failed", "build error", "compilation error", "dependency error", "build console"]
+  },
+  {
+    "id": "velocity-doc-002",
+    "title": "Velocity Deployment Guide",
+    "content": "Deployments in Velocity follow the pipeline stages: Build > Test > Stage > Production. Stuck deployments are usually caused by: approval gates, environment unavailability, or rollback triggers. Check the deployment timeline in Pipeline > Deployments. Manual intervention may require the DEPLOYER role.",
+    "keywords": ["deployment", "deploy", "stuck deployment", "deployment failed", "rollback", "pipeline stages"]
+  },
+  {
+    "id": "velocity-doc-003",
+    "title": "Velocity Pipeline Configuration",
+    "content": "Pipelines are defined in velocity.yml in your repository root. Key sections: stages, jobs, artifacts, and triggers. Pipeline errors often stem from: YAML syntax issues, invalid stage references, or missing secrets. Use the Pipeline Editor in Velocity UI for validation before committing changes.",
+    "keywords": ["pipeline", "pipeline error", "velocity.yml", "configuration", "stages", "yaml error"]
+  },
+  {
+    "id": "velocity-doc-004",
+    "title": "Velocity Environment Management",
+    "content": "Environments in Velocity are configured in Settings > Environments. Each environment has: variables, secrets, and deployment targets. Environment configuration issues include: missing variables, expired secrets, and incorrect target URLs. Use the environment diff tool to compare configurations across environments.",
+    "keywords": ["environment", "env config", "variables", "secrets", "environment configuration", "staging", "production"]
+  },
+  {
+    "id": "velocity-doc-005",
+    "title": "Velocity Agent Management",
+    "content": "Build agents run your pipeline jobs. Agent offline issues are caused by: network problems, expired agent tokens, or agent VM restarts. To reconnect: regenerate agent token in Settings > Agents, restart the agent service. Self-hosted agents require manual maintenance; consider using Velocity Cloud agents for reliability.",
+    "keywords": ["agent", "agent offline", "build agent", "runner", "agent token", "self-hosted agent"]
+  }
+]
+

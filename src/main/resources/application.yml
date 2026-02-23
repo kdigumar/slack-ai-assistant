@@ -1,0 +1,117 @@
+server:
+  port: 8080
+
+# ─── Slack Configuration ──────────────────────────────────────────────────────
+slack:
+  bot-token: ${SLACK_BOT_TOKEN}
+  signing-secret: ${SLACK_SIGNING_SECRET}
+
+# ─── Multi-Product Configuration ─────────────────────────────────────────────
+# Each product has its own channels, intent mappings, APIs, and RAG docs.
+# Add new products by copying the structure below.
+products:
+  definitions:
+    artemis:
+      channels:
+        - artemishelp
+        - artemis-support
+      intent-mapping-file: intent-mappings/artemis.json
+      api-base-url: https://artemis-api.internal
+      rag-docs-file: rag-docs/artemis.json
+      mock-delay-ms: 50
+
+    b360:
+      channels:
+        - b360help
+        - b360-support
+      intent-mapping-file: intent-mappings/b360.json
+      api-base-url: https://b360-api.internal
+      rag-docs-file: rag-docs/b360.json
+      mock-delay-ms: 50
+
+    velocity:
+      channels:
+        - velocityhelp
+        - velocity-support
+      intent-mapping-file: intent-mappings/velocity.json
+      api-base-url: https://velocity-api.internal
+      rag-docs-file: rag-docs/velocity.json
+      mock-delay-ms: 50
+
+# ─── Spring AI / OpenAI ───────────────────────────────────────────────────────
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o
+          temperature: 0.2
+  # Redis configuration (Phase 2)
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+
+# ─── Kafka Configuration (Phase 3) ───────────────────────────────────────────
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: slack-assistant-consumer
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.enterprise.slackassistant.kafka
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+# ─── Kafka Feature Toggle ────────────────────────────────────────────────────
+# Set to true to enable Kafka-based message queue processing
+# When false, uses direct async processing (default)
+kafka:
+  enabled: ${KAFKA_ENABLED:false}
+  topic:
+    slack-events: slack-events
+
+# ─── In-memory Response Cache ─────────────────────────────────────────────────
+cache:
+  # How long cached responses are valid before being evicted
+  ttl-minutes: 10
+
+# ─── Resilience4j Circuit Breaker (Phase 4) ──────────────────────────────────
+resilience4j:
+  circuitbreaker:
+    instances:
+      openai:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        register-health-indicator: true
+      external-api:
+        sliding-window-size: 5
+        failure-rate-threshold: 60
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+        register-health-indicator: true
+  retry:
+    instances:
+      openai:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+      external-api:
+        max-attempts: 2
+        wait-duration: 500ms
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
+logging:
+  level:
+    com.enterprise.slackassistant: DEBUG
+    com.slack.api: WARN
+    org.springframework.ai: INFO
+    io.github.resilience4j: DEBUG
