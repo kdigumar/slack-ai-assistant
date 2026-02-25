@@ -1,32 +1,25 @@
 package com.enterprise.slackassistant.config;
 
-import com.enterprise.slackassistant.dto.ApiCallResult;
-import com.enterprise.slackassistant.dto.IntentResult;
-import com.enterprise.slackassistant.dto.RagResult;
-import com.enterprise.slackassistant.exception.IntentNotFoundException;
-import com.enterprise.slackassistant.model.IntentMapping;
-import com.enterprise.slackassistant.service.*;
+import com.enterprise.slackassistant.service.ConversationService;
+import com.enterprise.slackassistant.service.LlmService;
+import com.enterprise.slackassistant.service.MessageBufferService;
+import com.enterprise.slackassistant.service.SlackService;
+import com.enterprise.slackassistant.service.ThreadReminderService;
 import com.slack.api.bolt.App;
 import com.slack.api.bolt.AppConfig;
-import com.slack.api.bolt.context.builtin.EventContext;
 import com.slack.api.methods.MethodsClient;
 import com.slack.api.model.event.MessageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/**
- * Slack Bolt configuration with multi-product support.
- * Routes messages to the appropriate product handler based on channel name.
- * Uses distributed deduplication via Redis for Kubernetes scaling.
- */
 @Configuration
 public class SlackConfig {
 
@@ -47,173 +40,92 @@ public class SlackConfig {
     }
 
     @Bean
-    public App slackApp(
-            AppConfig appConfig,
-            DeduplicationService deduplicationService,
-            ProductRouterService productRouterService,
-            CacheService cacheService,
-            IntentDetectionService intentDetectionService,
-            IntentMappingService intentMappingService,
-            ProductApiService productApiService,
-            RagService ragService,
-            SynthesisService synthesisService,
-            SlackService slackService) {
+    public App slackApp(AppConfig appConfig, 
+                        LlmService llmService, 
+                        @Lazy SlackService slackService,
+                        MessageBufferService bufferService,
+                        ConversationService conversationService,
+                        ThreadReminderService threadReminderService) {
+        
+        // Setup reminder callback for ThreadReminderService (time-based only)
+        threadReminderService.setReminderCallback((threadKey, channelId, threadTs) -> {
+            String reminder = ":wave: Just checking in - did the solution work for you? " +
+                    "Let me know if you need any more help!";
+            slackService.postMessage(channelId, reminder, threadTs);
+            log.info("[REMINDER] Posted to Slack | channel='{}' thread='{}'", channelId, threadTs);
+        });
+
+        threadReminderService.setCloseCallback((threadKey, channelId, threadTs) -> {
+            conversationService.closeConversation(threadKey);
+            slackService.postMessage(channelId,
+                ":hourglass_flowing_sand: This conversation has been closed due to inactivity. " +
+                "Feel free to send a new message anytime to start fresh!", threadTs);
+            log.info("[CLOSURE] Session ended and Slack notified | channel='{}' thread='{}'", channelId, threadTs);
+        });
 
         App app = new App(appConfig);
 
+        // Handle messages
         app.event(MessageEvent.class, (payload, ctx) -> {
             MessageEvent event = payload.getEvent();
 
-            // ── Skip bot messages (prevent infinite loops) ──────────────
             if (event.getBotId() != null || event.getSubtype() != null) {
                 return ctx.ack();
             }
 
-            // ── Deduplicate using distributed Redis service ─────────────
-            String eventId = event.getTs(); // message timestamp is unique per message
-            if (!deduplicationService.tryMarkAsProcessed(eventId)) {
-                log.info("⚡ DUPLICATE EVENT IGNORED | ts='{}' (Slack retry)", eventId);
-                return ctx.ack();
-            }
-
-            // ── Ack IMMEDIATELY — no work before this point ─────────────
             String channelId = event.getChannel();
             String userId = event.getUser();
             String userMessage = event.getText();
+            String threadTs = event.getThreadTs();
+            String messageTs = event.getTs();
 
-            log.info("✉ Message received | userId='{}' channelId='{}' ts='{}': '{}'",
-                    userId, channelId, eventId, userMessage);
+            // For channel messages (no thread), use messageTs to create a thread reply. For thread messages, use threadTs.
+            String replyThreadTs = (threadTs != null && !threadTs.isEmpty()) ? threadTs : messageTs;
 
-            // All processing happens async AFTER the ack
-            CompletableFuture.runAsync(
-                    () -> processPipeline(ctx, channelId, userId, userMessage,
-                            productRouterService, cacheService, intentDetectionService,
-                            intentMappingService, productApiService, ragService,
-                            synthesisService, slackService),
-                    EXECUTOR);
+            log.info("[INCOMING] User query received | channel='{}' user='{}' | threadTs='{}' messageTs='{}' | replyWillGoTo='{}'",
+                    channelId, userId, threadTs, messageTs, replyThreadTs);
+
+            String threadKey = conversationService.generateThreadKey(channelId, userId, replyThreadTs);
+
+            // Record user message - updating user timestamp
+            threadReminderService.recordUserMessage(threadKey, channelId, replyThreadTs);
+            log.info("[USER ACTIVITY] Updated user timestamp | threadKey='{}' | user query thread is '{}'", threadKey, replyThreadTs);
+
+            // Buffer the message for debouncing (preserves first message's thread for reply)
+            bufferService.bufferMessage(userId, channelId, userMessage, replyThreadTs, (combinedMessage, bufferedCtx) -> {
+                EXECUTOR.submit(() -> {
+                    try {
+                        List<Map<String, String>> history = conversationService.getHistory(threadKey);
+                        conversationService.addMessage(threadKey, "user", combinedMessage);
+
+                        log.info("[LLM] Processing message | threadKey='{}' | replyTo='{}' | history={} messages",
+                                threadKey, bufferedCtx.replyThreadTs, history.size());
+
+                        String response = llmService.chat(combinedMessage, history);
+                        conversationService.addMessage(threadKey, "assistant", response);
+
+                        // Record bot response - updating bot timestamp
+                        threadReminderService.recordBotResponse(threadKey);
+                        log.info("[BOT ACTIVITY] Updated bot timestamp | threadKey='{}'", threadKey);
+
+                        // Send response to user's thread
+                        log.info("[RESPONSE] Sending response to user thread | channel='{}' threadTs='{}' | {} chars",
+                                bufferedCtx.channelId, bufferedCtx.replyThreadTs, response.length());
+                        slackService.postMessage(bufferedCtx.channelId, response, bufferedCtx.replyThreadTs);
+                        log.info("[RESPONSE] Response sent to user thread successfully | threadKey='{}'", threadKey);
+
+                    } catch (Exception e) {
+                        log.error("[ERROR] Processing failed: {}", e.getMessage(), e);
+                        threadReminderService.recordBotError(threadKey); // clear processing flag on error
+                        slackService.postMessage(bufferedCtx.channelId,
+                            "Sorry, something went wrong. Please try again.", bufferedCtx.replyThreadTs);
+                    }
+                });
+            });
 
             return ctx.ack();
         });
 
         return app;
-    }
-
-    private void processPipeline(
-            EventContext ctx,
-            String channelId, String userId, String userMessage,
-            ProductRouterService productRouterService, CacheService cacheService,
-            IntentDetectionService intentDetectionService, IntentMappingService intentMappingService,
-            ProductApiService productApiService, RagService ragService,
-            SynthesisService synthesisService, SlackService slackService) {
-
-        long pipelineStart = System.currentTimeMillis();
-
-        try {
-            // ── Step 0: Resolve channel name (now inside async) ─────────
-            String channelName = resolveChannelName(ctx, channelId);
-
-            log.info("═══════════════════════════════════════════════════════════════");
-            log.info("▶ PIPELINE START | channel='{}' userId='{}' message='{}'", channelName, userId, userMessage);
-            log.info("═══════════════════════════════════════════════════════════════");
-
-            // ── Step 1: Resolve ProductId via ProductRouterService ───────
-            long t0 = System.currentTimeMillis();
-            String productId;
-            try {
-                productId = productRouterService.resolveProductId(channelName);
-            } catch (IllegalArgumentException e) {
-                log.warn("  [Step 1/7] PRODUCT NOT FOUND | channel='{}' — sending fallback", channelName);
-                slackService.postMessage(channelId,
-                        ":warning: This channel is not configured for any product. " +
-                        "Please contact your administrator to set up the channel-to-product mapping.");
-                return;
-            }
-            log.info("  [Step 1/7] PRODUCT RESOLVED | channel='{}' → productId='{}' ({}ms)",
-                    channelName, productId, System.currentTimeMillis() - t0);
-
-            // ── Step 2: Detect intent via LLM ─────────────────────────────
-            t0 = System.currentTimeMillis();
-            IntentResult intentResult = intentDetectionService.detect(userMessage, productId);
-            String intentName = intentResult.getIntentName();
-            log.info("  [Step 2/7] INTENT DETECTED | intent='{}' params={} ({}ms)",
-                    intentName, intentResult.getParameters(), System.currentTimeMillis() - t0);
-
-            // ── Step 3: Cache check ───────────────────────────────────────
-            String cacheKey = cacheService.buildKey(userId, productId + ":" + intentName);
-            Optional<String> cached = cacheService.get(cacheKey);
-            if (cached.isPresent()) {
-                log.info("  [Step 3/7] CACHE HIT | key='{}' — skipping API+RAG+Synthesis", cacheKey);
-                slackService.postMessage(channelId, cached.get());
-                log.info("◀ PIPELINE END (cache hit) | total={}ms", System.currentTimeMillis() - pipelineStart);
-                log.info("═══════════════════════════════════════════════════════════════\n");
-                return;
-            }
-            log.info("  [Step 3/7] CACHE MISS | key='{}'", cacheKey);
-
-            // ── Step 4: Intent → API mapping ──────────────────────────────
-            IntentMapping mapping;
-            try {
-                mapping = intentMappingService.lookup(productId, intentName);
-                log.info("  [Step 4/7] INTENT MAPPING | productId='{}' intent='{}' → apiNames={}",
-                        productId, intentName, mapping.getApiNames());
-            } catch (IntentNotFoundException e) {
-                log.warn("  [Step 4/7] INTENT NOT FOUND | {}", e.getMessage());
-                slackService.postMessage(channelId,
-                        ":thinking_face: I couldn't match your request to a known action for " + productId + ". "
-                        + "Could you provide more detail?");
-                return;
-            }
-
-            // ── Step 5: Parallel API + RAG ────────────────────────────────
-            log.info("  [Step 5/7] PARALLEL EXEC START | APIs={} + RAG query for product='{}'",
-                    mapping.getApiNames(), productId);
-            t0 = System.currentTimeMillis();
-
-            final String finalProductId = productId;
-            CompletableFuture<List<ApiCallResult>> apiFuture = CompletableFuture.supplyAsync(
-                    () -> productApiService.callAll(finalProductId, mapping.getApiNames(), intentResult.getParameters()),
-                    EXECUTOR);
-
-            CompletableFuture<List<RagResult>> ragFuture = CompletableFuture.supplyAsync(
-                    () -> ragService.retrieve(finalProductId, userMessage), EXECUTOR);
-
-            CompletableFuture.allOf(apiFuture, ragFuture).join();
-
-            List<ApiCallResult> apiResults = apiFuture.get();
-            List<RagResult> ragResults = ragFuture.get();
-            log.info("  [Step 5/7] PARALLEL EXEC DONE | apiResults={} ragDocs={} ({}ms)",
-                    apiResults.size(), ragResults.size(), System.currentTimeMillis() - t0);
-
-            // ── Step 6: Synthesis via LLM ─────────────────────────────────
-            t0 = System.currentTimeMillis();
-            String finalResponse = synthesisService.synthesize(userMessage, apiResults, ragResults);
-            log.info("  [Step 6/7] SYNTHESIS DONE | responseLength={} chars ({}ms)",
-                    finalResponse.length(), System.currentTimeMillis() - t0);
-
-            // ── Step 7: Cache + post ──────────────────────────────────────
-            cacheService.put(cacheKey, finalResponse);
-            slackService.postMessage(channelId, finalResponse);
-            log.info("  [Step 7/7] POSTED TO SLACK | channel='{}' cached as '{}'", channelId, cacheKey);
-
-            log.info("◀ PIPELINE END (success) | total={}ms", System.currentTimeMillis() - pipelineStart);
-            log.info("═══════════════════════════════════════════════════════════════\n");
-
-        } catch (Exception e) {
-            log.error("✖ PIPELINE ERROR | channel='{}' userId='{}' error='{}'",
-                    channelId, userId, e.getMessage(), e);
-            slackService.postErrorFallback(channelId);
-        }
-    }
-
-    private String resolveChannelName(EventContext ctx, String channelId) {
-        try {
-            var info = ctx.client().conversationsInfo(r -> r.channel(channelId));
-            if (info.isOk() && info.getChannel() != null) {
-                return info.getChannel().getName();
-            }
-        } catch (Exception e) {
-            log.warn("Could not resolve channel name for '{}': {}", channelId, e.getMessage());
-        }
-        return channelId;
     }
 }
